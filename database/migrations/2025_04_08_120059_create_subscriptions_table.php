@@ -16,6 +16,9 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('service_id')->constrained('services')->onDelete('cascade');
             $table->string('description');
+            $table->date('start_date');
+            $table->date('end_date');
+
             $table->timestamps();
         });
     }

@@ -38,6 +38,20 @@ class ContentController extends Controller {
         return response()->json(['message' => 'تم الحذف بنجاح']);
     }
 
+
+    //////////////////////////////////////////////////////////////////////////
+ // ContentController.php
+
+ public function showBySectionName(Request $request, $section_title)
+ {
+     $perPage = $request->input('per_page', 10);
+     $response = $this->contentService->getContentBySectionName($section_title, $perPage);
+
+     return response()->json($response, $response['succeeded'] ? 200 : 404);
+ }
+
+    /////////////////////////////////////////////////////////////////
+
     // --- User (عرض المحتوى) ---
     // public function userIndex() {
     //     $contents = $this->contentService->getAllContents();

@@ -1,6 +1,8 @@
 <?php
 namespace App\Services;
 
+use App\Models\Content;
+use App\Models\Section;
 use App\Repositories\ContentRepository;
 use App\Repositories\SectionRepository;
 use Illuminate\Support\Facades\Storage;
@@ -63,5 +65,80 @@ private function cleanResponse($data) {
         return $value !== null && $value !== '';
     });
 }
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// ContentService.php
+
+//  /**
+//      * جلب المحتوى حسب اسم الـ section مع دعم pagination
+//      *
+//      * @param string $sectionTitle
+//      * @param int $perPage
+//      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
+//      */
+//     public function getContentBySectionTitle(string $section_title, int $perPage = 10): array
+//     {
+//         $contents = $this->contentRepo->getBySectionTitle($section_title, $perPage);
+
+//         return [
+//             'message' => $contents->isEmpty()
+//                 ? 'No content found for section: ' . $section_title
+//                 : 'Content retrieved successfully',
+//             'succeeded' => !$contents->isEmpty(),
+//             'data' => $contents->items(),
+//             'pagination' => [
+//                 'total' => $contents->total(),
+//                 'per_page' => $contents->perPage(),
+//                 'current_page' => $contents->currentPage(),
+//                 'last_page' => $contents->lastPage()
+//             ]
+//         ];
+//     }
+public function getContentBySectionName($name, $perPage = 10)
+    {
+        $contents = $this->contentRepo->getBySectionTitle($name, $perPage);
+
+        if ($contents->isEmpty()) {
+            return [
+                'message' => 'لا يوجد محتوى للقسم: ' . $name,
+                'succeeded' => false,
+                'data' => null,
+                'pagination' => null
+            ];
+        }
+
+        // نعدل البيانات هنا فقط لإزالة التكرار
+        $filteredData = $contents->map(function($content) {
+            return [
+                'id' => $content->id,
+                'paragraph_title' => $content->paragraph_title,
+                'description' => $content->description,
+                'location' => $content->location,
+                'special' => $content->special,
+                'date' => $content->date,
+                'phone_number' => $content->phone_number,
+                'email' => $content->email,
+                'work_time' => $content->work_time,
+                'media_contents' => $content->mediaContents,
+                'section' => $content->section // نترك العلاقة كما هي لكن بدون section_id المكرر
+            ];
+        });
+
+        return [
+            'message' => 'تم جلب محتوى القسم بنجاح',
+            'succeeded' => true,
+            'data' => $filteredData,
+            'pagination' => [
+                'total' => $contents->total(),
+                'per_page' => $contents->perPage(),
+                'current_page' => $contents->currentPage(),
+                'last_page' => $contents->lastPage()
+            ]
+        ];
+    }
+
+/////////ظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظ/////
+//////////////////////////////////////////////////////////////////////////
 
 }

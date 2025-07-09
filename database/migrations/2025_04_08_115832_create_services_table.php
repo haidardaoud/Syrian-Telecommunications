@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('description');
             $table->unsignedInteger('price');
+            $table->string('type')->default('misc');
             $table->timestamps();
         });
     }

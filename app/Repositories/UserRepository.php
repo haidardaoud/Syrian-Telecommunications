@@ -9,15 +9,27 @@ use Str;
 
 class UserRepository
 {
-    public function findByUserName(string $userName)
-    {
-        return User::where('user_name', $userName)->first();
-    }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+public function findByUserName(string $userName)
+{
+    return User::where('user_name', $userName)->first();
+}
 
-    public function createUser(array $data)
-    {
-        return User::create($data);
-    }
+public function createUser(array $data)
+{
+    return User::create([
+        'user_name' => $data['user_name'],
+        'company_data' => $data['company_data'] ?? null,
+        'job_id' => $data['job_id'] ?? 1
+    ]);
+}
+
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //     public function updatePassword(string $userName, string $newPassword)
 // {
 //     $user = $this->findByUserName($userName);

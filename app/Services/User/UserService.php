@@ -2,51 +2,172 @@
 
 namespace App\Services\User;
 
-use App\Models\Log;
+use App\Repositories\BundleRepository;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Repositories\UserRepository;
 use App\Services\CompanyAuthService;
+use Illuminate\Support\Facades\Hash;
 
 class UserService
 {
     private $userRepository;
     private $companyAuthService;
 
-    public function __construct(UserRepository $userRepository, CompanyAuthService $companyAuthService)
+    public function __construct(UserRepository $userRepository, CompanyAuthService $companyAuthService,private BundleRepository $bundleRepository)
     {
         $this->userRepository = $userRepository;
         $this->companyAuthService = $companyAuthService;
     }
 
-    public function login(array $credentials)
-    {
-        $data = $this->companyAuthService->login($credentials);
+   ///////////////////////////////////////////////////////////////////////////
+   ////1- تشييك بجدول اليوزر اذا موجود والROLE_ID NOT 1
+   ////2- ارجاع الى الصفحى حسب الrole id
+   ////3- ارسال api للشركة والتخقق من الشركة
+   ////4- اذا كان الرد  ok => يتم التأكد منه اذا كان موجودا في DB الخاصة فينا
+   ////5- ارجاع المعلومات
+   ////6- اذا لم يكن موجود يتم انشاء واخد مع الjob_id = 1
 
-        if ($data['success']) {
-            $externalUser = $data['data']['user'];
 
-            // التحقق من وجود المستخدم أو إنشائه عبر المستودع
-            $user = $this->userRepository->findByUserName($externalUser['user_name']);
+//    public function login(array $credentials)
+// {
+//     try {
+//         // 1. التحقق من وجود المستخدم في DB مع job_id ≠ 1
+//         $existingUser = $this->userRepository->findByUserName($credentials['user_name']);
 
-            if (!$user) {
-                $user = $this->userRepository->createUser([
-                    'user_name' => $externalUser['user_name'],
-                    // 'password' => Hash::make($credentials['password'])
-                ]);
-            }
+//         if ($existingUser && $existingUser->job_id != 1) {
+//             return $this->handleSpecialUser($existingUser);
+//         }
 
-            $token = $user->createToken('auth_token')->plainTextToken;
+//         // 2. إذا لم يكن موجود أو job_id = 1 نتحقق من API الشركة
+//         $apiResponse = $this->companyAuthService->login($credentials);
 
-            return response()->json([
-                'message' => 'Login successful',
-                'token' => $token,
-                'redirect_to' => 'page null',
-                'user' => $user,
-            ]);
-        }
+//         if (!$apiResponse['success']) {
+//             throw new \Exception($apiResponse['error'] ?? 'Authentication failed');
+//         }
 
-        return response()->json($data['error'], $data['code']);
+//         // 3. إنشاء/تحديث المستخدم في DB
+//         $user = $existingUser ?? $this->userRepository->createUser([
+//             'user_name' => $credentials['user_name'],
+//             'company_data' => json_encode($apiResponse['data']),
+//             'job_id' => 1 // قيمة افتراضية للمستخدمين العاديين
+//         ]);
+
+//         return response()->json([
+//            // 'token' => $user->createToken('auth_token')->plainTextToken,
+//             'user' => $user->only(['id', 'user_name', 'job_id']),
+//             'company_data' => $apiResponse['data'],
+//             //'user_type' => 'regular'
+//         ]);
+
+//     } catch (\Exception $e) {
+//         Log::error("Login Error: " . $e->getMessage());
+//         return response()->json([
+//             'error' => $e->getMessage(),
+//             'code' => 401
+//         ], 401);
+//     }
+// }
+
+private function handleSpecialUser($user)
+{
+    return response()->json([
+        'token' => $user->createToken('auth_token')->plainTextToken,
+        'user' => $user->only(['id', 'user_name', 'job_id']),
+        'user_type' => 'special' // admin, employee, etc.
+    ]);
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+public function login(array $credentials)
+{
+    // 1. التحقق من API الشركة أولاً
+    $apiResponse = $this->companyAuthService->login($credentials);
+
+    // 2. إذا فشلت مصادقة الشركة أو كانت البيانات null
+    if (!$apiResponse['success'] || empty($apiResponse['data'])) {
+        return response()->json([
+            'error' => 'معلومات الدخول غير صحيحة',
+            'message' => 'اسم المستخدم أو كلمة المرور غير صحيحة',
+            'code' => 401
+        ], 401);
     }
+
+    // 3. فقط إذا نجح التحقق مع الشركة، نتحقق من المستخدم المحلي
+    $existingUser = $this->userRepository->findByUserName($credentials['user_name']);
+
+    // 4. إذا كان مستخدم خاص (job_id != 1)
+    if ($existingUser && $existingUser->job_id != 1) {
+        return $this->handleSpecialUser($existingUser);
+    }
+
+    // 5. إذا كان مستخدم عادي (أو غير موجود)
+    $user = $existingUser ?? $this->userRepository->createUser([
+        'user_name' => $credentials['user_name'],
+        'company_data' => json_encode($apiResponse['data']),
+        'job_id' => 1
+    ]);
+
+    return response()->json([
+        'user' => $user->only(['id', 'user_name', 'job_id']),
+        'company_data' => $apiResponse['data']
+    ]);
+}
+
+
+public function getAvailableBundles(string $username, string $password): array
+{
+    return $this->bundleRepository->getBundles($username, $password);
+}
+
+// app/Services/BillService.php
+
+// app/Services/BillService.php
+// app/Services/BillService.php
+public function fetchCustomerBills(string $phoneNumber): array
+{
+    $result = $this->bundleRepository->getCustomerBills($phoneNumber);
+
+    if (!$result['success']) {
+        return [
+            'success' => false,
+            'error' => $result['error'],
+            'code' => $result['code']
+        ];
+    }
+
+    return [
+        'success' => true,
+        'data' => $result['data']
+    ];
+}
+
+
+
+
+public function getSubscriberInfo(
+    string $username,
+    string $password,
+    string $startTime,
+    string $endTime
+): ?array {
+    return $this->companyAuthService->fetchSubscriberData(
+        $username,
+        $password,
+        $startTime,
+        $endTime
+    );
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+public function getSubscriberPackageInfo(string $username, string $password): ?array
+{
+    return $this->companyAuthService->fetchSubscriberPackages($username, $password);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    //ظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظظ
 //     public function resetPassword(array $data)
 // {
 //     $apiResponse = $this->companyAuthService->resetPassword($data);
@@ -87,32 +208,39 @@ class UserService
 // /////////////////////////////////////////////////////////////////////////////////////
 
 // app/Services/UserService.php
-public function changePassword(array $data)
-{
-    // 1. التحقق من CAPTCHA (تلقائي عبر الـ Request)
-    // 2. التحقق من تطابق كلمة المرور الجديدة (تلقائي عبر 'confirmed')
+// public function changePassword(array $data)
+// {
+//     // 1. التحقق من CAPTCHA (تلقائي عبر الـ Request)
+//     // 2. التحقق من تطابق كلمة المرور الجديدة (تلقائي عبر 'confirmed')
 
-    // 3. التحقق من كلمة السر القديمة عبر API الشركة
-    $verifyResponse = $this->companyAuthService->verifyCredentials([
-        'user_id'   => auth()->id(),
-        'password'  => $data['current_password']
-    ]);
+//     // 3. التحقق من كلمة السر القديمة عبر API الشركة
+//     $verifyResponse = $this->companyAuthService->verifyCredentials([
+//         'user_id'   => auth()->id(),
+//         'password'  => $data['current_password']
+//     ]);
 
-    if (!$verifyResponse['success']) {
-        return response()->json([
-            'error' => 'Current password is incorrect',
-            'new_captcha' => captcha_src() // إعادة توليد CAPTCHA عند الفشل
-        ], 401);
-    }
+//     if (!$verifyResponse['success']) {
+//         return response()->json([
+//             'error' => 'Current password is incorrect',
+//             'new_captcha' => captcha_src() // إعادة توليد CAPTCHA عند الفشل
+//         ], 401);
+//     }
 
-    // 4. تحديث كلمة السر
-    $this->userRepository->updatePasswordById(auth()->id(), $data['new_password']);
+//     // 4. تحديث كلمة السر
+//     $this->userRepository->updatePasswordById(auth()->id(), $data['new_password']);
 
-    return response()->json([
-        'message' => 'Password changed successfully',
-        'captcha_refreshed' => false
-    ]);
-}
+//     return response()->json([
+//         'message' => 'Password changed successfully',
+//         'captcha_refreshed' => false
+//     ]);
+// }
+
+////////////////////////////////////////////////////////////////////
+
+
+
+
+
 public function impersonateAsTemporaryUser(int $adminId)
 {
     try {

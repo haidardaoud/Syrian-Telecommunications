@@ -34,6 +34,6 @@ class Content extends Model
     // علاقة مع القسم
     public function section()
     {
-        return $this->belongsTo(Section::class);
+        return $this->belongsTo(Section::class,'section_id');
     }
 }

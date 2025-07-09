@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BillRequest;
 use App\Http\Requests\ChangePasswordRequest;
+use App\Http\Requests\UsageLogRequest;
 use Illuminate\Http\Request;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\StoreEmployeeRequest;
-use App\Models\Log;
+use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use App\Services\User\UserService;
+use Carbon\Carbon;
 
 class UserController extends Controller
 {
@@ -31,15 +35,253 @@ class UserController extends Controller
          */
 
         public function login(LoginRequest $request)
-        {
-            return $this->userService->login($request->credentials());
-        }
+{
+    return $this->userService->login($request->credentials());
+}
+
+
+public function index(LoginRequest $request)
+{
+    try {
+        $bundles = $this->userService->getAvailableBundles(
+            $request->input('userName'),
+            $request->input('userPswd')
+        );
+
+        return response()->json([
+            'success' => true,
+            'basic' => $bundles['basic'],
+            'bundles' => $bundles['bundles']
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to retrieve bundles',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+// app/Http/Controllers/BillController.php
+public function bills(BillRequest $request)
+{
+    $result = $this->userService->fetchCustomerBills(
+        $request->input('phon')
+    );
+
+    return response()->json([
+        'Responce' => [
+            'error' => $result['success'] ? 0 : 1,
+            'Erorr_Description' => $result['error'] ?? '',
+            'data' => $result['data'] ?? []
+        ]
+    ], $result['success'] ? 200 : ($result['code'] ?? 400));
+}
+
+
+
+// public function usageLogs(Request $request)
+// {
+//     // توقع أن التاريخ مثل "5/2025"
+//     $startInput = $request->input('StartTime'); // مثال: 5/2025
+//     $endInput = $request->input('EndTime');     // مثال: 5/2025
+
+//     try {
+//         // حلل التاريخ بصيغة m/Y
+//         $start = Carbon::createFromFormat('m/Y', $startInput)->startOfMonth()->format('Ymd000000');
+//         $end = Carbon::createFromFormat('m/Y', $endInput)->endOfMonth()->format('Ymd235959');
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'message' => 'تنسيق التاريخ غير صالح. استخدم mm/YYYY',
+//             'succeeded' => false,
+//             'data' => [],
+//         ], 422);
+//     }
+
+//     $result = $this->userService->fetchUsageLogs(
+//         $request->input('userName'),
+//         $request->input('userPswd'),
+//         $start,
+//         $end
+//     );
+
+//     return response()->json([
+//         'message' => $result['succeeded'] ? 'Success' : 'Failed',
+//         'succeeded' => $result['succeeded'],
+//         'data' => $result['data'],
+//     ], $result['succeeded'] ? 200 : 400);
+// }
+
+
+
+
+
+// public function usageLogs(Request $request)
+// {
+//     $startInput = $request->input('StartTime'); // مثال: 5/2025
+//     $endInput = $request->input('EndTime');     // مثال: 5/2025
+
+//     try {
+//         // حلل التاريخ بصيغة m/Y
+//         $start = Carbon::createFromFormat('m/Y', $startInput)->startOfMonth()->format('Ymd000000');
+//         $end = Carbon::createFromFormat('m/Y', $endInput)->endOfMonth()->format('Ymd235959');
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'message' => 'تنسيق التاريخ غير صالح. استخدم mm/YYYY',
+//             'succeeded' => false,
+//             'data' => [],
+//         ], 422);
+//     }
+
+//     $result = $this->userService->fetchUsageLogs(
+//         $request->input('userName'),
+//         $request->input('userPswd'),
+//         $start,
+//         $end
+//     );
+
+//     if ($result['succeeded']) {
+//         $logs = collect($result['data']);
+
+//         $totalUpload = $logs->sum('upload_MB');
+//         $totalDownload = $logs->sum('download_MB');
+//         $total = $logs->sum('total_MB');
+
+//         return response()->json([
+//             'message' => 'Success',
+//             'succeeded' => true,
+//             'data' => $logs,
+//             'summary' => [
+//                 'total_upload_GB' => round($totalUpload / 1024, 2),
+//                 'total_download_GB' => round($totalDownload / 1024, 2),
+//                 'total_GB' => round($total / 1024, 2),
+//             ]
+//         ]);
+//     }
+
+//     return response()->json([
+//         'message' => 'Failed',
+//         'succeeded' => false,
+//         'data' => [],
+//     ], 400);
+// }
+
+
+
+
+public function show(Request $request)
+{
+    $request->validate([
+        'userName' => 'required|string',
+        'userPswd' => 'required|string',
+        'StartTime' => 'required|string|regex:/^\d{14}$/', // YYYYMMDDHHMMSS
+        'EndTime' => 'required|string|regex:/^\d{14}$/',
+    ]);
+
+    try {
+        $data = $this->userService->getSubscriberInfo(
+            $request->input('userName'),
+            $request->input('userPswd'),
+            $request->input('StartTime'),
+            $request->input('EndTime')
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'succeeded' => true,
+            'data' => $data
+        ]);
+
+    } catch (\Throwable $e) {
+        Log::error('API Error', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'message' => $e->getMessage(),
+            'succeeded' => false
+        ], 500);
+    }
+}
+/////////////////////////////////////////////////////
+
+
+
+
+public function packageInfo(Request $request)
+{
+    $request->validate([
+        'userName' => 'required|string',
+        'userPswd' => 'required|string',
+    ]);
+
+    try {
+        $data = $this->userService->getSubscriberPackageInfo(
+            $request->input('userName'),
+            $request->input('userPswd')
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'succeeded' => true,
+            'data' => $data
+        ]);
+    } catch (\Throwable $e) {
+        Log::error('API Error (Package Info)', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'message' => $e->getMessage(),
+            'succeeded' => false
+        ], 500);
+    }
+}
 
 /////////////////////////////////////////////////////
 
-        public function changePassword(ChangePasswordRequest $request)
+        // public function changePassword(ChangePasswordRequest $request)
+        // {
+        //     return $this->userService->changePassword($request->validated());
+        // }
+        public function changePassword(Request $request)
         {
-            return $this->userService->changePassword($request->validated());
+            $request->validate([
+                'user_name' => 'required|string',
+                'oldPassword' => 'required|string',
+                'newPassword' => 'required|string|min:6',
+                'confirmPassword' => 'required|same:newPassword',
+            ]);
+
+            $subscriber = User::where('user_name', $request->user_name)->first();
+
+            if (!$subscriber) {
+                return response()->json([
+                    'message' => 'المستخدم غير موجود',
+                    'succeeded' => false
+                ], 404);
+            }
+
+            if ($subscriber->password !== $request->oldPassword) {
+                return response()->json([
+                    'message' => 'كلمة المرور القديمة غير صحيحة',
+                    'succeeded' => false
+                ], 401);
+            }
+
+            $subscriber->password = $request->newPassword;
+            $subscriber->save();
+
+            return response()->json([
+                'message' => 'تم تغيير كلمة المرور بنجاح',
+                'succeeded' => true
+            ]);
         }
 
 ////////////////////////////////////////////////////

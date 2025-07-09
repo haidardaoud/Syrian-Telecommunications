@@ -2,64 +2,61 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Service;
+use App\Http\Requests\ServiceRequest;
+use App\Services\ServiceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ServiceController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
+    public function __construct(public ServiceService $serviceService) {
+       $this->serviceService = $serviceService;
     }
 
     /**
-     * Show the form for creating a new resource.
+     * عرض جميع الخدمات مع Pagination
      */
-    public function create()
+    public function index(Request $request): JsonResponse
     {
-        //
+        $perPage = $request->input('per_page', 10);
+        $response = $this->serviceService->getAllServices($perPage);
+
+        return response()->json($response );
     }
 
     /**
-     * Store a newly created resource in storage.
+     * إنشاء خدمة جديدة
      */
-    public function store(Request $request)
+    public function store(ServiceRequest $request): JsonResponse
     {
-        //
+        $response = $this->serviceService->createService($request->validated());
+        return response()->json($response, $response['success'] ? 201 : 400);
     }
 
     /**
-     * Display the specified resource.
+     * عرض خدمة محددة
      */
-    public function show(Service $service)
+    public function show(int $id): JsonResponse
     {
-        //
+        $response = $this->serviceService->getServiceById($id);
+        return response()->json($response, $response['success'] ? 200 : 404);
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * تحديث الخدمة
      */
-    public function edit(Service $service)
+    public function update(ServiceRequest $request, int $id): JsonResponse
     {
-        //
+        $response = $this->serviceService->updateService($id, $request->validated());
+        return response()->json($response, $response['success'] ? 200 : 404);
     }
 
     /**
-     * Update the specified resource in storage.
+     * حذف الخدمة
      */
-    public function update(Request $request, Service $service)
+    public function destroy(int $id): JsonResponse
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Service $service)
-    {
-        //
+        $response = $this->serviceService->deleteService($id);
+        return response()->json($response, $response['success'] ? 200 : 404);
     }
 }

@@ -1,11 +1,15 @@
 <?php
 
+use App\Http\Controllers\BillController;
+use App\Http\Controllers\BundleController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MediaContentController;
 use App\Http\Controllers\MediaPageController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\SectionController;
+use App\Http\Controllers\SelfCareController;
+use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +49,7 @@ Route::prefix('admin')->group(function () {
     Route::get('contents', [ContentController::class, 'index']);          // Get all contents
     Route::post('contents', [ContentController::class, 'store']);        // Create content
     Route::get('contents/{id}', [ContentController::class, 'show']);    // Get content by ID
+    Route::get('contents/sections/{section_title}', [ContentController::class, 'showBySectionName']); // Get paginated content by section name
     Route::put('contents/{id}', [ContentController::class, 'update']);  // Update content
     Route::delete('contents/{id}', [ContentController::class, 'destroy']); // Delete content
 
@@ -73,10 +78,36 @@ Route::prefix('admin')->group(function () {
     Route::post('/users/{userId}/suspend', [UserController::class, 'suspendUser']);
     Route::post('/users/{userId}/reactivate', [UserController::class, 'reactivateUser']);
     Route::post('/users/{userId}/force-logout', [UserController::class, 'forceLogoutUser']);
+
+
+
+   //services
+   Route::prefix('services')->group(function () {
+    Route::get('/get_all', [ServiceController::class, 'index']);
+    Route::post('/add', [ServiceController::class, 'store']);
+    Route::get('/show/{id}', [ServiceController::class, 'show']);
+    Route::put('/update/{id}', [ServiceController::class, 'update']);
+    Route::delete('/delete/{id}', [ServiceController::class, 'destroy']);
+});
 });
 
 //login
-Route::post('/login', [UserController::class, 'login']);
+//Route::post('/login', [UserController::class, 'login']);
+Route::get('/login', [UserController::class, 'login']);
+Route::get('/bundles', [UserController::class, 'index']);
+
+Route::post('/buy', [BillController::class, 'purchase']);// شراء حجوم اضافية
+Route::get('/get_bundles', [BundleController::class, 'getUserBundles']);// شراء حجوم اضافية
+Route::get('/bills', [UserController::class, 'bills']);
+Route::get('/usage-log', [UserController::class, 'show']);
+Route::get('/package-info', [UserController::class, 'packageInfo']);
+Route::post('/change-password', [UserController::class, 'changePassword']);
+
+//self care
+Route::post('/self-care/login', [SelfCareController::class, 'login']);
+Route::post('/self-care/services', [SelfCareController::class, 'showServices']);
+Route::post('/self-care/bills', [SelfCareController::class, 'showBills']);
+
 
 // User Routes
 Route::prefix('user')->group(function () {
@@ -97,9 +128,9 @@ Route::prefix('user')->group(function () {
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('/change-password', [UserController::class, 'changePassword'])
-        ->name('password.change')
-        ->middleware('throttle:5,1');// منع الهجمات (5 محاولات في الدقيقة)
+    // Route::post('/change-password', [UserController::class, 'changePassword'])
+    //     ->name('password.change')
+        //->middleware('throttle:5,1');// منع الهجمات (5 محاولات في الدقيقة)
         Route::post('/logout', [UserController::class, 'logout']);
 
 });
